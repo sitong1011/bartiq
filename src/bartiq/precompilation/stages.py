@@ -254,3 +254,30 @@ def _propagate_linked_params(routine: Routine) -> None:
     # Avoid marking linked_params as set if there was no change
     if new_linked_params != routine.linked_params:
         routine.linked_params = new_linked_params
+
+
+def _is_symbol_or_int(expression):
+    try:
+        int(expression)
+        return True
+    except (TypeError, ValueError):
+        return expression.isidentifier()
+
+
+def remove_non_trivial_input_port_sizes(routine: Routine, _backend: SymbolicBackend) -> None:
+    """TODO"""
+    for subroutine in routine.walk():
+        local_variables = {}
+        for port in subroutine.input_ports.values():
+            if not _is_symbol_or_int(str(port.size)):
+                local_variable_name = f"{port.name}_size"
+                if local_variable_name in subroutine.local_variables:
+                    raise BartiqPrecompilationError(
+                        "Attempted to create local variable "
+                        f"for port with non-trivial size: {port}, "
+                        f"but local variable called {local_variable_name} already exists."
+                    )
+                else:
+                    local_variables[local_variable_name] = port.size
+                port.size = local_variable_name
+        subroutine.local_variables = {**subroutine.local_variables, **local_variables}

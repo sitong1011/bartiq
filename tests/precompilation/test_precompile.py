@@ -22,6 +22,7 @@ from bartiq.precompilation.stages import (
     add_default_additive_resources,
     add_default_properties,
     unroll_wildcarded_resources,
+    remove_non_trivial_input_port_sizes,
 )
 
 from ..utilities import routine_with_passthrough, routine_with_two_passthroughs
@@ -758,6 +759,214 @@ def test_precompile_handles_passthroughs(backend):
     assert "passthrough_0" in precompiled_routine.children["c"].children
     assert "passthrough_1" in precompiled_routine.children["c"].children
     assert len(precompiled_routine.children["c"].connections) == 4
+
+
+@pytest.mark.parametrize(
+    "input_dict, expected_dict",
+    (
+        # Test if non-trivial input sizes are handled when variable is used only in ports.
+        (
+            {
+                "name": "root",
+                "type": None,
+                "ports": {
+                    "in_0": {
+                        "name": "in_0",
+                        "direction": "input",
+                        "size": {"type": "str", "value": "2*N"},
+                    },
+                    "out_0": {"name": "out_0", "direction": "output", "size": None},
+                },
+                "children": {
+                    "a": {
+                        "name": "a",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "x + 2"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                    "b": {
+                        "name": "b",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "N"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                },
+                "connections": [
+                    {"source": "in_0", "target": "a.in_0"},
+                    {"source": "a.out_0", "target": "b.in_0"},
+                    {"source": "b.out_0", "target": "out_0"},
+                ],
+            },
+            {
+                "name": "root",
+                "type": None,
+                "ports": {
+                    "in_0": {
+                        "name": "in_0",
+                        "direction": "input",
+                        "size": {"type": "str", "value": "in_0_size"},
+                    },
+                    "out_0": {"name": "out_0", "direction": "output", "size": None},
+                },
+                "local_variables": {"in_0_size": "2*N"},
+                "children": {
+                    "a": {
+                        "name": "a",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "in_0_size"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "local_variables": {"in_0_size": "x + 2"},
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                    "b": {
+                        "name": "b",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "N"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                },
+                "connections": [
+                    {"source": "in_0", "target": "a.in_0"},
+                    {"source": "a.out_0", "target": "b.in_0"},
+                    {"source": "b.out_0", "target": "out_0"},
+                ],
+            },
+        ),
+        (
+            {
+                "name": "root",
+                "type": None,
+                "ports": {
+                    "in_0": {
+                        "name": "in_0",
+                        "direction": "input",
+                        "size": {"type": "str", "value": "2*N"},
+                    },
+                    "out_0": {"name": "out_0", "direction": "output", "size": None},
+                },
+                "children": {
+                    "a": {
+                        "name": "a",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "x + 2"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                        "resources": {"T": {"name": "T", "value": "x", "type": "additive"}},
+                    },
+                    "b": {
+                        "name": "b",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "N"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                },
+                "connections": [
+                    {"source": "in_0", "target": "a.in_0"},
+                    {"source": "a.out_0", "target": "b.in_0"},
+                    {"source": "b.out_0", "target": "out_0"},
+                ],
+            },
+            {
+                "name": "root",
+                "type": None,
+                "ports": {
+                    "in_0": {
+                        "name": "in_0",
+                        "direction": "input",
+                        "size": {"type": "str", "value": "in_0_size"},
+                    },
+                    "out_0": {"name": "out_0", "direction": "output", "size": None},
+                },
+                "local_variables": {"in_0_size": "2*N"},
+                "children": {
+                    "a": {
+                        "name": "a",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "in_0_size"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "local_variables": {"in_0_size": "x + 2"},
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                        "resources": {"T": {"name": "T", "value": "x", "type": "additive"}},
+                    },
+                    "b": {
+                        "name": "b",
+                        "type": None,
+                        "ports": {
+                            "in_0": {
+                                "name": "in_0",
+                                "direction": "input",
+                                "size": {"type": "str", "value": "N"},
+                            },
+                            "out_0": {"name": "out_0", "direction": "output", "size": None},
+                        },
+                        "connections": [{"source": "in_0", "target": "out_0"}],
+                    },
+                },
+                "connections": [
+                    {"source": "in_0", "target": "a.in_0"},
+                    {"source": "a.out_0", "target": "b.in_0"},
+                    {"source": "b.out_0", "target": "out_0"},
+                ],
+            },
+        ),
+    ),
+)
+def test_precompile_handles_non_trivial_input_sizes(input_dict, expected_dict, backend):
+    input_routine = Routine(**input_dict)
+    precompiled_routine = precompile(
+        input_routine, precompilation_stages=[remove_non_trivial_input_port_sizes], backend=backend
+    )
+    assert precompiled_routine == Routine(**expected_dict)
+
+    from bartiq import compile_routine
+
+    compile_routine(precompiled_routine)
 
 
 FAILING_CASES = [

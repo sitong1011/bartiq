@@ -23,6 +23,7 @@ from .stages import (
     propagate_linked_params,
     remove_non_root_container_input_register_sizes,
     unroll_wildcarded_resources,
+    remove_non_trivial_input_port_sizes,
 )
 
 PrecompilationStage = Callable[[Routine, SymbolicBackend], None]
@@ -67,4 +68,5 @@ def default_precompilation_stages():
         remove_non_root_container_input_register_sizes,
         unroll_wildcarded_resources,
         propagate_linked_params,
+        remove_non_trivial_input_port_sizes,
     ]
